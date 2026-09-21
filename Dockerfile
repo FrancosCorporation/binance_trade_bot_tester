@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM python:3.8 as builder
+FROM python:3.8-slim AS builder
 
 WORKDIR /install
 
@@ -13,5 +13,6 @@ WORKDIR /app
 
 COPY --from=builder /install /usr/local
 COPY . .
+RUN test -f user.cfg || cp user.cfg.example user.cfg
 
 CMD ["python", "-m", "binance_trade_bot"]
