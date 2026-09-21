@@ -1,5 +1,23 @@
 # binance-trade-bot
 
+## 🐳 Instalação e Execução (Docker) — recomendado
+
+### Pré-requisitos
+- [Docker](https://docs.docker.com/get-docker/) + Docker Compose
+
+### Rodar com Docker
+```bash
+docker compose up --build
+```
+Já possui Dockerfile+compose. No container: docker run --rm -v $(pwd)/user.cfg:/app/user.cfg binance-bot-tester
+
+### Sem Docker (local)
+```bash
+pip install -r requirements.txt
+cp user.cfg.example user.cfg  # edite com suas chaves Binance
+python -m binance_trade_bot
+```
+
 ![github](https://img.shields.io/github/workflow/status/edeng23/binance-trade-bot/binance-trade-bot)
 ![docker](https://img.shields.io/docker/pulls/edeng23/binance-trade-bot)
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/edeng23/binance-trade-bot)
