@@ -1,10 +1,11 @@
 import re
+import secrets
+import os
 from datetime import datetime, timedelta
 from itertools import groupby
 from typing import List, Tuple
 
-from flask import Flask, jsonify, request
-from flask_cors import CORS
+from flask import Flask, abort, jsonify, request
 from flask_socketio import SocketIO, emit
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -15,14 +16,35 @@ from .logger import Logger
 from .models import Coin, CoinValue, CurrentCoin, Pair, ScoutHistory, Trade
 
 app = Flask(__name__)
-cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
+API_TOKEN = os.environ.get("API_TOKEN", "")
+if len(API_TOKEN.encode("utf-8")) < 32:
+    raise RuntimeError("API_TOKEN deve estar configurado com pelo menos 32 bytes.")
 
-socketio = SocketIO(app, cors_allowed_origins="*")
+# Flask-SocketIO mantém a política padrão de mesma origem; não habilite CORS global.
+socketio = SocketIO(app)
 
 
 logger = Logger("api_server")
 config = Config()
 db = Database(logger, config)
+
+
+def _token_is_valid(token: str) -> bool:
+    return isinstance(token, str) and secrets.compare_digest(
+        token.encode("utf-8"), API_TOKEN.encode("utf-8")
+    )
+
+
+@app.before_request
+def require_api_token():
+    if not request.path.startswith("/api/"):
+        return None
+
+    parts = request.headers.get("Authorization", "").split()
+    token = parts[1] if len(parts) == 2 and parts[0].lower() == "bearer" else ""
+    if not _token_is_valid(token):
+        return jsonify({"error": "unauthorized"}), 401
+    return None
 
 
 def filter_period(query, model):  # pylint: disable=inconsistent-return-statements
@@ -31,18 +53,23 @@ def filter_period(query, model):  # pylint: disable=inconsistent-return-statemen
     if period == "all":
         return query
 
-    num = float(re.search(r"(\d*)[shdwm]", "1d").group(1))
+    match = re.fullmatch(r"([1-9]\d*)([shdwm])", period)
+    if match is None:
+        abort(400, description="period deve usar um número positivo seguido de s, h, d, w ou m")
 
-    if "s" in period:
-        return query.filter(model.datetime >= datetime.now() - timedelta(seconds=num))
-    if "h" in period:
-        return query.filter(model.datetime >= datetime.now() - timedelta(hours=num))
-    if "d" in period:
-        return query.filter(model.datetime >= datetime.now() - timedelta(days=num))
-    if "w" in period:
-        return query.filter(model.datetime >= datetime.now() - timedelta(weeks=num))
-    if "m" in period:
-        return query.filter(model.datetime >= datetime.now() - timedelta(days=28 * num))
+    num = int(match.group(1))
+    unit = match.group(2)
+    if unit == "s":
+        delta = timedelta(seconds=num)
+    elif unit == "h":
+        delta = timedelta(hours=num)
+    elif unit == "d":
+        delta = timedelta(days=num)
+    elif unit == "w":
+        delta = timedelta(weeks=num)
+    else:
+        delta = timedelta(days=28 * num)
+    return query.filter(model.datetime >= datetime.now() - delta)
 
 
 @app.route("/api/value_history/<coin>")
@@ -112,7 +139,7 @@ def scouting_history():
 @app.route("/api/current_coin")
 def current_coin():
     coin = db.get_current_coin()
-    return coin.info() if coin else None
+    return jsonify(coin.info() if coin else {"coin": None})
 
 
 @app.route("/api/current_coin_history")
@@ -149,5 +176,19 @@ def handle_my_custom_event(json):
     emit("update", json, namespace="/frontend", broadcast=True)
 
 
+@socketio.on("connect", namespace="/backend")
+def authenticate_backend(auth=None):
+    token = auth.get("token") if isinstance(auth, dict) else None
+    if not _token_is_valid(token):
+        return False
+
+
+@socketio.on("connect", namespace="/frontend")
+def authenticate_frontend(auth=None):
+    token = auth.get("token") if isinstance(auth, dict) else None
+    if not _token_is_valid(token):
+        return False
+
+
 if __name__ == "__main__":
-    socketio.run(app, debug=True, port=5123)
+    socketio.run(app, debug=False, host="127.0.0.1", port=5123)

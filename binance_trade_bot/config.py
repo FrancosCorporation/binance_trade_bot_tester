@@ -48,8 +48,19 @@ class Config:  # pylint: disable=too-few-public-methods,too-many-instance-attrib
         )
 
         # Get config for binance
-        self.BINANCE_API_KEY = os.environ.get("API_KEY") or config.get(USER_CFG_SECTION, "api_key")
-        self.BINANCE_API_SECRET_KEY = os.environ.get("API_SECRET_KEY") or config.get(USER_CFG_SECTION, "api_secret_key")
+        self.BINANCE_API_KEY = os.environ.get("API_KEY") or config.get(
+            USER_CFG_SECTION, "api_key", fallback=""
+        )
+        self.BINANCE_API_SECRET_KEY = os.environ.get("API_SECRET_KEY") or config.get(
+            USER_CFG_SECTION, "api_secret_key", fallback=""
+        )
+        if (
+            not self.BINANCE_API_KEY.strip()
+            or not self.BINANCE_API_SECRET_KEY.strip()
+            or self.BINANCE_API_KEY == "COLE_SUA_API_KEY_AQUI"
+            or self.BINANCE_API_SECRET_KEY == "COLE_SUA_API_SECRET_AQUI"
+        ):
+            raise ValueError("Configure API_KEY e API_SECRET_KEY reais antes de iniciar o bot.")
         self.BINANCE_TLD = os.environ.get("TLD") or config.get(USER_CFG_SECTION, "tld")
 
         # Get supported coin list from the environment

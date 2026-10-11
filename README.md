@@ -7,9 +7,22 @@
 
 ### Rodar com Docker
 ```bash
-docker compose up --build
+docker compose up --build crypto-trading
 ```
-Já possui Dockerfile+compose. No container: docker run --rm -v $(pwd)/user.cfg:/app/user.cfg binance-bot-tester
+Já possui Dockerfile+compose. Para iniciar a API protegida, exporte `API_TOKEN` conforme o passo
+abaixo e rode `docker compose up -d api`.
+
+O painel HTTP fica disponível apenas em `127.0.0.1:5123` e exige um token. Antes de subir a API,
+gere um token local e exporte-o no terminal:
+
+```bash
+export API_TOKEN="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+docker compose up -d api
+```
+
+Envie o token como `Authorization: Bearer <API_TOKEN>` nas chamadas HTTP e no campo `auth.token`
+da conexão Socket.IO. Para acessar de outra máquina, use um túnel SSH; não publique a porta em uma
+interface de rede.
 
 ### Sem Docker (local)
 ```bash

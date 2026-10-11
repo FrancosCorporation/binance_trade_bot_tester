@@ -24,12 +24,16 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
     ports:
-      - 5123:5123
+      - "127.0.0.1:5123:5123"
+    environment:
+      API_TOKEN: ${API_TOKEN:-}
     command: gunicorn binance_trade_bot.api_server:app -k eventlet -w 1 --threads 1 -b 0.0.0.0:5123
     depends_on:
       - crypto-trading
 
   sqlitebrowser:
+    profiles:
+      - debug
     image: ghcr.io/linuxserver/sqlitebrowser
     container_name: sqlitebrowser
     environment:
@@ -40,4 +44,4 @@ services:
       - ./data/config:/config
       - ./data:/data
     ports:
-      - 3000:3000
+      - "127.0.0.1:3000:3000"

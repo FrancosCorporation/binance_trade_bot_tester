@@ -5,6 +5,8 @@
 __pycache__
 nohup.out
 user.cfg
+.user.cfg
+.user.cfg.*.bak
 .idea/
 .vscode/
 .replit

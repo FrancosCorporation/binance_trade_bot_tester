@@ -96,19 +96,12 @@ Nada disso está no `backtest.py` — é infraestrutura de exposição, não de 
 ### SEC-01 · `.user.cfg` (arquivo de uso real) está versionado · [P0]
 
 - **Arquivo:** `.user.cfg` (12 linhas)
-- **Evidência:** `git ls-files | grep cfg` → `.user.cfg`, `.user.cfg.example`, `user.cfg.example`.
-  O `.gitignore:8` ignora **`user.cfg`** (sem ponto), mas o arquivo real em disco se chama
-  **`.user.cfg`** (com ponto) — padrões do gitignore não casam com nomes diferentes.
-  Verificação de conteúdo: `api_key` e `api_secret_key` têm 64 caracteres e são **idênticos** aos de
-  `.user.cfg.example` (hashes iguais) — portanto são as chaves de **exemplo do projeto upstream**
-  (`edeng23/binance-trade-bot`), **não** credenciais suas.
-- **Impacto:** **não há vazamento ativo de chave real** — registrei isso para não alarmar
-  desnecessariamente. O risco é **estrutural e latente**: este é o arquivo que o `config.py:51-52`
-  lê quando `API_KEY` não vem do ambiente. Se você editar `.user.cfg` com suas chaves verdadeiras
-  (que é exatamente o fluxo esperado de uso), elas serão commitadas no próximo `git add -A` —
-  e uma chave de Binance com permissão de trading permite **sacar ou operar** na sua conta.
-  Além disso, `.user.cfg.example` traz um par de chaves formatado como reais; quem ler pode
-  confundir exemplo com credencial.
+- **Evidência:** antes da correção, `.user.cfg` estava no índice e `.gitignore` cobria somente
+  `user.cfg`. Agora o arquivo local foi mantido no disco, removido do índice e ignorado; os dois
+  exemplos usam marcadores claros e `Config` recusa iniciar com esses marcadores.
+- **Impacto:** a inspeção inicial não encontrou credenciais reais. Antes da correção, `.user.cfg`
+  podia ser incluído em um futuro `git add -A`; agora o arquivo local é ignorado pelo Git e pelo
+  Docker, e os exemplos não contêm valores com aparência de chave.
 - **Mudança:**
   1. `git rm --cached .user.cfg` (tira do índice, **mantém** no disco) e adicionar ao `.gitignore`:
      ```
@@ -133,11 +126,9 @@ Nada disso está no `backtest.py` — é infraestrutura de exposição, não de 
 ### SEC-02 · Painel Flask sem nenhuma autenticação · [P0]
 
 - **Arquivo:** `binance_trade_bot/api_server.py` (15 linhas de rotas, nenhuma de auth)
-- **Evidência:** `grep -n 'auth\|token\|before_request\|login' api_server.py` → **nenhum resultado**.
-  As 9 rotas públicas (`value_history`, `total_value_history`, `trade_history`,
-  `scouting_history`, `current_coin`, `current_coin_history`, `coins`, `pairs`, `usage`) são
-  registradas com `@app.route(...)` puro e não têm middleware algum. O `app = Flask(__name__)` da
-  linha 17 não é protegido por nada.
+- **Evidência:** antes da correção, as rotas `/api/*` não tinham middleware de autenticação. Agora
+  exigem `Authorization: Bearer ...`, comparado em tempo constante com `API_TOKEN` do ambiente;
+  conexões Socket.IO nos namespaces `/backend` e `/frontend` também exigem token no handshake.
 - **Impacto:** **qualquer pessoa que alcance a porta 5123** lê: histórico **completo de trades**
   (linhas 81-90 — ativo, preço, quantidade, data), **saldo** (`total_value_history`, linhas 65-78 —
   soma de `btc_value` e `usd_value`), e a **moeda que o bot está segurando agora** (`current_coin`,
@@ -161,15 +152,8 @@ Nada disso está no `backtest.py` — é infraestrutura de exposição, não de 
 ### SEC-03 · API publicada em `0.0.0.0:5123` no host · [P0]
 
 - **Arquivo:** `docker-compose.yml:26-28`
-- **Evidência:**
-  ```yaml
-  api:
-    ports:
-      - 5123:5123
-    command: gunicorn binance_trade_bot.api_server:app -k eventlet -w 1 --threads 1 -b 0.0.0.0:5123
-  ```
-  `ports:` (não `expose:`) publica a porta em **todas** as interfaces do host, e o `gunicorn -b 0.0.0.0`
-  escuta em tudo dentro do container também.
+- **Evidência:** antes da correção, `5123:5123` publicava em todas as interfaces do host. Agora o
+  Compose publica `127.0.0.1:5123:5123`; o bind `0.0.0.0` permanece apenas dentro do container.
 - **Impacto:** combinado com o `SEC-02` (zero auth), isso transforma o painel de trades em serviço
   **público** na máquina. Num servidor com porta 5123 liberada no firewall (ou atrás de um reverse
   proxy mal configurado), qualquer um da internet vê seus saldos e histórico. Mesmo numa LAN,
@@ -190,11 +174,8 @@ Nada disso está no `backtest.py` — é infraestrutura de exposição, não de 
 ### SEC-04 · CORS `*` e Socket.IO sem restrição de origem · [P0]
 
 - **Arquivo:** `binance_trade_bot/api_server.py:18` e `:20`
-- **Evidência:**
-  ```python
-  cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
-  socketio = SocketIO(app, cors_allowed_origins="*")
-  ```
+- **Evidência:** antes da correção, Flask-CORS e Socket.IO aceitavam qualquer origem. Agora Flask-CORS
+  foi removido e Socket.IO usa a política de mesma origem; ambos os namespaces validam token.
 - **Impacto:** com `origins: "*"`, **qualquer página da web** pode fazer requisições autenticadas
   (ou não) para a API a partir do navegador do próprio operador. Se o operador abrir um site
   malicioso com o painel aberto, o atacante lê saldos e histórico via `fetch` (com o token, se ele
@@ -696,6 +677,15 @@ git ls-files | grep -x '.user.cfg' || echo 'OK: cfg fora do git'
 
 ---
 
-*Fim do plano. Gerado por leitura direta do código em 2026-10-02. Nenhum item já estava corrigido*
-*— todos apontam para defeitos ainda presentes. Nota: verifiquei que o `.user.cfg` contém as chaves*
-*de exemplo do upstream, não chaves reais — o item `SEC-01` é preventivo, não remediativo.*
+## Registro de execução — 2026-10-11
+
+- Aplicadas as mudanças de código dos quatro P0: `.user.cfg` local preservado fora do índice,
+  exemplos sem chaves que pareçam reais, validação das credenciais Binance, token obrigatório no
+  painel e nos namespaces Socket.IO, porta do host limitada a loopback e CORS aberto removido.
+- Também foi corrigido `debug=True`, o `sqlitebrowser` passou para o profile `debug` em loopback,
+  `filter_period` agora valida e interpreta o período recebido e `current_coin` retorna JSON quando
+  não há posição.
+- Os itens continuam desmarcados até executar as verificações e criar o commit exigido por este
+  plano. Nenhum teste ou serviço foi executado nesta sessão.
+
+*Plano criado em 2026-10-02 e atualizado após a implementação parcial de 2026-10-11.*

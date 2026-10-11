@@ -1,6 +1,6 @@
 [binance_user_config]
-api_key = sua_api_key_aqui
-api_secret_key = sua_api_secret_aqui
+api_key =COLE_SUA_API_KEY_AQUI
+api_secret_key =COLE_SUA_API_SECRET_AQUI
 tld = com
 use_margin = no
 current_coin = BNB
