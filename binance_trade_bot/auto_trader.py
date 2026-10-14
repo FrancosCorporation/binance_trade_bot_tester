@@ -54,7 +54,7 @@ class AutoTrader:
         """
 
         if coin_price is None:
-            self.logger.info("Skipping update... current coin {} not found".format(coin + self.config.BRIDGE))
+            self.logger.info(f"Skipping update... current coin {coin + self.config.BRIDGE} not found")
             return
 
         session: Session
@@ -64,7 +64,7 @@ class AutoTrader:
 
                 if from_coin_price is None:
                     self.logger.info(
-                        "Skipping update for coin {} not found".format(pair.from_coin + self.config.BRIDGE)
+                        f"Skipping update for coin {pair.from_coin + self.config.BRIDGE} not found"
                     )
                     continue
 
@@ -84,14 +84,14 @@ class AutoTrader:
                 from_coin_price = self.manager.get_ticker_price(pair.from_coin + self.config.BRIDGE)
                 if from_coin_price is None:
                     self.logger.info(
-                        "Skipping initializing {}, symbol not found".format(pair.from_coin + self.config.BRIDGE)
+                        f"Skipping initializing {pair.from_coin + self.config.BRIDGE}, symbol not found"
                     )
                     continue
 
                 to_coin_price = self.manager.get_ticker_price(pair.to_coin + self.config.BRIDGE)
                 if to_coin_price is None:
                     self.logger.info(
-                        "Skipping initializing {}, symbol not found".format(pair.to_coin + self.config.BRIDGE)
+                        f"Skipping initializing {pair.to_coin + self.config.BRIDGE}, symbol not found"
                     )
                     continue
 
@@ -114,7 +114,7 @@ class AutoTrader:
 
             if optional_coin_price is None:
                 self.logger.info(
-                    "Skipping scouting... optional coin {} not found".format(pair.to_coin + self.config.BRIDGE)
+                    f"Skipping scouting... optional coin {pair.to_coin + self.config.BRIDGE} not found"
                 )
                 continue
 
