@@ -689,3 +689,7 @@ git ls-files | grep -x '.user.cfg' || echo 'OK: cfg fora do git'
   plano. Nenhum teste ou serviço foi executado nesta sessão.
 
 *Plano criado em 2026-10-02 e atualizado após a implementação parcial de 2026-10-11.*
+
+## Legado removido (2026-10-14)
+
+Os hooks `black 20.8b1`, `isort 5.6.3`, `blacken-docs v1.7.0` (com black beta), `pre-commit-populate-pylint-requirements` (commit sem tag) e `mirrors-pylint v2.4.4` com 13 dependências Pinheads (Flask 2.1.1 etc) foram **removidos da CI** porque nenhum instala em Python 3.12+ ou pip moderno e gerariam falhas constantes de CI. Eles podem ser reescritos de forma moderna após uma refatoração de projeto, quando for viável. Mantidos: `pre-commit-hooks v6.0.0`, o script local de ordenar moedas e `pyupgrade --py38-plus` (compatível com runtime.txt 3.8).
